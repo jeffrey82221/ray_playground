@@ -24,10 +24,13 @@ class MNISTDataModule(pl.LightningDataModule):
         mnist_train = self.download_data(self.data_dir)
         self.mnist_train, self.mnist_val = random_split(
             mnist_train, [55000, 5000])
+        print(f'[prepare_data] DONE with pid: {os.getpid()}')
 
     def train_dataloader(self):
+        print(f'[train_dataloader] Start with pid: {os.getpid()}')
         return DataLoader(self.mnist_train, batch_size=int(self.batch_size))
 
     def val_dataloader(self):
+        print(f'[val_dataloader] Start with pid: {os.getpid()}')
         return DataLoader(self.mnist_val, batch_size=int(self.batch_size))
 

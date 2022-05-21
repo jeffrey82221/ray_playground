@@ -32,7 +32,7 @@ def train_mnist_no_tune():
         "batch_size": 64
     }
     train_mnist(config)
-
+import logging
 def train_mnist_tune(config, num_epochs=10, num_gpus=0, dm=None):
     assert dm is not None
     model = LightningMNISTClassifier(config)
