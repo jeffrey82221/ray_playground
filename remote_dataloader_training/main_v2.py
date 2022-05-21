@@ -10,7 +10,17 @@ from torchvision.transforms import ToTensor
 import ray
 import uuid
 
-
+class DataLoaderRemoteAdaptor:
+    @staticmethod
+    def convert(dataloader_cls):
+        class SharableDataLoader(dataloader_cls):
+            def __init__(self, *args, **kargs):
+                self.remote_data_loader = RemoteDataLoader.remote(
+                    dataloader_cls, init_args = args, init_kargs=kargs
+                )
+            def get_client(self):
+                return ClientDataLoader(self.remote_data_loader)
+        return SharableDataLoader
     
 @ray.remote
 class RemoteDataLoader:
@@ -45,6 +55,9 @@ class ClientDataLoader:
     def close(self):
         self.shared_dataloader.close_connection.remote(self.client_id)
 
+
+
+
 import logging
 @ray.remote
 class Consumer:
@@ -65,12 +78,11 @@ dataset = datasets.FashionMNIST(
         download=True,
         transform=ToTensor(),
 )
-remote_data_loader = RemoteDataLoader.remote(
-    DataLoader, init_args = [dataset], init_kargs={'batch_size': batch_size}
-)
+
+sharable_dataloader = DataLoaderRemoteAdaptor.convert(DataLoader)(dataset, batch_size = batch_size)
 del dataset
-dataloader_1 = ClientDataLoader(remote_data_loader)
-dataloader_2 = ClientDataLoader(remote_data_loader)
+dataloader_1 = sharable_dataloader.get_client()
+dataloader_2 = sharable_dataloader.get_client()
 print('client dataloaders built')
 consumer_1 = Consumer.remote(dataloader_1)
 consumer_2 = Consumer.remote(dataloader_2)
