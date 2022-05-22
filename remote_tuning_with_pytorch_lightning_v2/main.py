@@ -42,10 +42,10 @@ def train_mnist_no_tune():
     }
     train_mnist(config)
 import logging
-def train_mnist_tune(config, num_epochs=10, num_gpus=0, dm=None):
+def train_mnist_tune(config, num_epochs=10, num_workers=1, num_gpus=0, dm=None):
     assert dm is not None
     model = LightningMNISTClassifier(config)
-    plugin = RayPlugin(num_workers=os.cpu_count(), use_gpu=(num_gpus > 0))
+    plugin = RayPlugin(num_workers=num_workers, use_gpu=(num_gpus > 0))
     trainer = pl.Trainer(
         max_epochs=num_epochs,
         # If fractional GPUs passed in, convert to int.
@@ -82,17 +82,20 @@ if __name__ == '__main__':
         metric_columns=["loss", "mean_accuracy", "training_iteration"]
     )
     gpus_per_trial = 0
+    cpus_per_trial = 1
     data_dir = "~/data"
     data_dir = os.path.expanduser(data_dir)
     dm = MNISTDataModule(data_dir=data_dir, batch_size=32)
     dm.prepare_data()
+    # 用 with_parameters, DM 會被整包放進object store去被共享! 不需要特別去做dataloader的處理
     train_fn_with_parameters = tune.with_parameters(train_mnist_tune,
                                                     num_epochs=num_epochs,
+                                                    num_workers=cpus_per_trial,
                                                     num_gpus=gpus_per_trial,
                                                     dm=dm)
 
     analysis = tune.run(train_fn_with_parameters,
-        resources_per_trial=get_tune_resources(num_workers=1),
+        resources_per_trial={"cpu": cpus_per_trial, "gpu": gpus_per_trial},#get_tune_resources(num_workers=2, num_cpus_per_worker=1, use_gpu=gpus_per_trial>0),
         metric="loss",
         mode="min",
         config=config,
